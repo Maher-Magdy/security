@@ -188,6 +188,40 @@ def s_box_finder(word):
 
     # return string
     return ''.join(sWord)
+def inv_s_box_finder(word):
+    sWord = ()
+    # loop throug the current word
+    for j in range(len(word)):
+        for i in range(0, 8, 2):
+
+            # check first char, if its a letter(a-f) get corresponding decimal
+            # otherwise just take the value and add 1
+            if word[j][i].isdigit() == False:
+                row = ord(word[j][i]) - 54
+            else:
+                row = int(word[j][i]) + 1
+
+            # repeat above for the seoncd char
+            if word[j][i + 1].isdigit() == False:
+                col = ord(word[j][i + 1]) - 54
+            else:
+                col = int(word[j][i + 1]) + 1
+
+            # get the index base on row and col (16x16 grid)
+            sBoxIndex = (row * 16) - (17 - col)
+
+            # get the value from sbox without prefix
+            piece = hex(inv_s_box[sBoxIndex])[2:]
+
+            # check length to ensure leading 0s are not forgotton
+            if len(piece) != 2:
+                piece = '0' + piece
+
+            # form tuple
+            sWord = (*sWord, piece)
+
+    # return string
+    return ''.join(sWord)
 def xor_with_key(text, key):
     out=""
     for i in range(len(text)):
@@ -241,6 +275,32 @@ def shift_the_rows(s):
     ss[1] = text_matrix[1][2:8] + text_matrix[1][:2]
     ss[2] = text_matrix[2][4:] + text_matrix[2][:4]
     ss[3] = text_matrix[3][6:] + text_matrix[3][:6]
+
+    return ss
+def inv_shift_the_rows(s):
+    a0 = ""
+    a1 = ""
+    a2 = ""
+    a3 = ""
+    #rotate first
+    for i in range(0, len(s), 1):
+        a0 += s[i][0:2]
+        a1 += s[i][2:4]
+        a2 += s[i][4:6]
+        a3 += s[i][6:8]
+
+    text_matrix = []
+    text_matrix.append(a0)
+    text_matrix.append(a1)
+    text_matrix.append(a2)
+    text_matrix.append(a3)
+
+    ss = ["", "", "", ""]
+    #shift
+    ss[0] = text_matrix[0]
+    ss[1] = text_matrix[1][6:8] + text_matrix[1][:6]
+    ss[2] = text_matrix[2][4:] + text_matrix[2][:4]
+    ss[3] = text_matrix[3][2:] + text_matrix[3][:2]
 
     return ss
 def rotate(text_matrix):
@@ -300,7 +360,45 @@ def gf_multiply_8(first_vector,second_vector):
 
     final= xor_with_key(xor_with_key(xor_with_key(result[0],result[1]),result[2]),result[3])
     return final
-def encrypt_block( plaintext,key):
+def gf_times_2(bits):
+    times_2 = decimal_to_binary(binary_to_decimal(bits) * 2)
+    times_2 = str(times_2)
+    if len(times_2) > 8:
+        times_2 = xor_with_key(times_2[4:], "00011011")
+    elif len(times_2) < 8:
+        times_2 = "0000" + times_2
+
+    return times_2
+def inv_gf_multiply_8(first_vector,second_vector):
+    result = []
+    for i in range(len(first_vector)):
+        bits=second_vector[i * 8:i * 8 + 8]
+        if first_vector[i] == 9: #2*2*2 xor with 1
+            a=gf_times_2( gf_times_2( gf_times_2(bits)))
+            a= xor_with_key(a,bits)
+            result.append(a)
+        elif first_vector[i] == 11:
+            a = gf_times_2(gf_times_2(gf_times_2(bits)))
+            b= gf_times_2(bits)
+            a = xor_with_key(a, b)
+            a= xor_with_key(a,bits)
+            result.append(a)
+        elif first_vector[i] == 13:
+            a = gf_times_2(gf_times_2(gf_times_2(bits))) #8
+            b = gf_times_2(gf_times_2( bits)) #4
+            a = xor_with_key(a, b)
+            a = xor_with_key(a, bits)
+            result.append(a)
+        elif first_vector[i]==14:
+            a = gf_times_2(gf_times_2(gf_times_2(bits)))  # 8
+            b = gf_times_2(gf_times_2(bits))  # 4
+            a = xor_with_key(a, b)
+            a = xor_with_key(a,gf_times_2( bits))
+            result.append(a)
+
+    final = xor_with_key(xor_with_key(xor_with_key(result[0], result[1]), result[2]), result[3])
+    return final
+def encrypt(plaintext, key):
 
 
     original_key=key
@@ -309,6 +407,7 @@ def encrypt_block( plaintext,key):
 
     #key to binary
     key=generate(key)
+
     for i in range(len(key)):
         key[i] = hex_to_binary(key[i])
 
@@ -336,11 +435,11 @@ def encrypt_block( plaintext,key):
             a1[i]=hex_to_binary(a1[i].upper())
 
 
-        shift_matrix=[[2 ,3 ,1 ,1],[1,2,3,1],[1,1,2,3],[3,1,1,2]]
+        mix_matrix=[[2 , 3 , 1 , 1], [1, 2, 3, 1], [1, 1, 2, 3], [3, 1, 1, 2]]
         result=[[2 ,3 ,1 ,1],[1,2,3,1],[1,1,2,3],[3,1,1,2]]
         for i in range(4):
             for j in range(4):
-                result[i][j]=gf_multiply_8(shift_matrix[i],a1[j])
+                result[i][j]=gf_multiply_8(mix_matrix[i], a1[j])
         if ii != 9:
             a1=[]
             for i in range(len(result)):
@@ -357,6 +456,8 @@ def encrypt_block( plaintext,key):
 
 
         #must convert to one line in binary
+        # key[4]="0000"+key[4]
+
         text_after_first_round=xor_with_key(a1, (key[ii+1]))
         # print(binary_to_hex(a1))
         # print(binary_to_hex(key[ii+1]),"hjgfj")
@@ -367,10 +468,70 @@ def encrypt_block( plaintext,key):
 
 
     return text_after_first_round
-############################################################################################################
-# print(encrypt_block("54776F204F6E65204E696E652054776F".upper(),"5468617473206D79204B756E67204675".lower()))
+def decrypt(ciphertext, key):
+    #plain text to binary
+    plaintext_binary=hex_to_binary(ciphertext)
+    #key to binary
+    key=generate(key)
+
+    keyy=[]
+    for i in range(len(key)):
+        keyy.append( hex_to_binary(key[i]))
+    for i in range(len(key)):
+        key[i]=keyy[-i-1]
+
+    text_after_first_round=xor_with_key(plaintext_binary, key[0])
+    text_after_first_round=binary_to_hex(text_after_first_round)
+
+    for ii in range(10):
+        # construct a matrix
+        text_matrix = construct_matrix(text_after_first_round)
+        text_matrix=rotate(text_matrix)
+
+        a1 = inv_shift_the_rows(text_matrix)
+
+        a1 = rotate(a1) #columns
+
+        a1=inv_s_box_finder(a1)
+
+        # make binary
+        a1= hex_to_binary(a1.upper())
+        # must convert to one line in binary
+
+        a1 = xor_with_key(a1, (key[ii + 1]))
+
+        a1 = binary_to_hex(a1)
+
+        a1=construct_matrix(a1) #rows
+
+        #rotate
+        a1=rotate(a1)#columns
+        #make binary
+        for i in range(len(a1)):
+            a1[i]=hex_to_binary(a1[i].upper())
+
+        mix_matrix=[[14,11,13,9], [9,14,11,13], [13,9,14,11], [11,13,9,14]]
+        result=[[2 ,3 ,1 ,1],[1,2,3,1],[1,1,2,3],[3,1,1,2]]
+        for i in range(4):
+            for j in range(4):
+                result[i][j]=inv_gf_multiply_8(mix_matrix[i], a1[j])
+        if ii != 9:
+            a1=[]
+            for i in range(len(result)):
+                a1.append(''.join(result[i]))
+        for i in range(4):
+            a1[i]=binary_to_hex(a1[i])
+
+        a1=rotate(a1)
+        if ii==9:
+            a1=rotate(a1)
+
+        text_after_first_round=(''.join(a1))
+
+    return text_after_first_round
 print("enter 2 lines , a 32 hex key and a 32 hex plain text.")
 key=input()
 plain_text=input()
-print("cipher text of ",plain_text," is : ",encrypt_block(plain_text.upper(),key.lower()))
+print("cipher text of ", plain_text," is : ", encrypt(plain_text.upper(), key.lower()))
+print("plain  text of ", plain_text," is : ",decrypt(plain_text.upper(),key.lower()))
 input()

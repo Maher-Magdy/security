@@ -20,7 +20,7 @@ Rcon = [0x00000000, 0x01000000, 0x02000000,
         0x20000000, 0x40000000, 0x80000000,
         0x1b000000, 0x36000000]
 
-
+kio=[]
 def keyExpansion(key):
     # prep w list to hold 44 tuples
     w = [()] * 44
@@ -66,11 +66,14 @@ def hexor(hex1, hex2):
     hexed = hex(xord)[2:]
 
     # leading 0s get cut above, if not length 8 add a leading 0
-    if len(hexed) != 8:
-        hexed = '0' + hexed
-
+    while True :
+        if len(hexed) != 8:
+            hexed = '0' + hexed
+        else:
+            break
+    # kio.append(1)
+    # print(hexed,len(kio))
     return hexed
-
 # takes a hex value and returns binary
 def hex2binary(hex):
     return bin(int(str(hex), 16))
@@ -143,3 +146,4 @@ def generate(key):
     return expanded_key_list
 
 
+# generate("A1EE5608B33AF05470858608D1DE080F".lower())
